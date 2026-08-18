@@ -1,31 +1,33 @@
 import os
-os.environ["PREFECT_API_URL"] = "http://127.0.0.1:4200/api"
-from prefect import flow , task
 from datetime import timedelta
-from FetchRawData import fetch_crypto_data
-from transform_data import process_latest_raw_data
-from Loading import load_data
+from prefect import flow, get_run_logger
+
+os.environ["PREFECT_API_URL"] = "http://127.0.0.1:4200/api"
+
+from Fetch import fetch_crypto_data
+from transform import process_latest_raw_data
+from Load import load_data
 
 
-@flow(name = "Crypto ETL Pipeline")
-def crypto_etl_flow():
-    try :
-        print("Pipeline start .....")
-        # Step 1: Fetch raw data from API → save JSON to MinIO
-        fetch_crypto_data()
-        # Step 2: Read JSON from MinIO → transform → save Parquet to MinIO
-        process_latest_raw_data()
-        # Step 3: Read Parquet from MinIO → load into PostgreSQL
-        load_data()
-        print("Pipeline completed successfully!")
-    
-    except Exception as e:
-        print(f"Pipeline failure at task : {str(e)}")
-        raise e 
-    
+@flow(name="Crypto ETL Pipeline")
+def crypto_etl_flow() -> None:
+    logger = get_run_logger()
+
+    logger.info("Pipeline started")
+    fetch_crypto_data()
+
+    logger.info("Fetch complete. Starting transform...")
+    process_latest_raw_data()
+
+    logger.info("Transform complete. Starting load...")
+    load_data()
+
+    logger.info("Pipeline completed successfully!")
+
+
 if __name__ == "__main__":
     crypto_etl_flow.serve(
-        name = "crypto-etl-hourly-development",
+        name="crypto-etl-hourly",
         interval=timedelta(hours=1),
-        tags=["crypto","production"]
+        tags=["crypto", "etl"]
     )
